@@ -2,12 +2,13 @@
 error_reporting("E_ALL");
 require_once  "Mysql.php";
  $db = new MbMysql("127.0.0.1","root","123","micro_bang","","UTF8");
+ $now = now();
  $action = p("action");
  if($action==""){
-    echo j("001","action can not be empty");
+    die(j("001","action can not be empty"));
  }
  /***********************************/
- if($action == "register"){///////////////////////////
+ if($action == "register"){
     $name = p("name");
     $pwd = p("pwd");
     $rst = $db->query("select * from mb_member where name = '$name' ");
@@ -27,17 +28,52 @@ require_once  "Mysql.php";
      $num  = mysql_num_rows($rst);
      if($num>0) {
          $rst = $db->fetch_array();
-         $arr = array("mid"=>$rst[0]["mid"]);
+         $arr = array(
+             "mid"=>$rst[0]["mid"],
+             "nickname"=>$rst[0]["nickname"]
+         );
+         $db->update("mb_member","is_online=1","name='{$name}' and pwd = '$pwd' limit 1");
          echo j("000", "登陆成功",$arr);
      }else{
          echo j("004", "用户名或密码错误");
      }
  }elseif($action== "logout"){
- }elseif($action== "login1"){
- }elseif($action== "login2"){
- }elseif($action== "login3"){
+     $mid = p("mid");
+     if($mid==''){
+        echo j("006","mid can't be empty");
+        return;
+     }
+     $db->update("mb_friend","is_online=0","mid='$mid' limit 1");
+     echo j("000","logout succ");
+ }elseif($action== "addFriend"){
+     $mid = p("mid");
+     $friend_mid = p("friend_mid");
+     if($mid==''||$friend_mid==''){
+         echo j("006","mid can't be empty");
+         return;
+     }
+     $db->insert("mb_friend","mid,friend_mid,create_time","$mid,$friend_mid,'$now'");
+     echo j("000","add friend succ");
+ }elseif($action== "removeFriend"){
+     $mid = p("mid");
+     $friend_mid = p("friend_mid");
+     if($mid==''||$friend_mid==''){
+         echo j("006","param err");
+         return;
+     }
+     $db->delete("mb_friend","mid=$mid and friend_mid=$friend_mid");
+     echo j("000","add friend succ");
+ }elseif($action== "editProfile"){
+     $mid = p("mid"); //todo add more editable profile
+     $nickname = p("nickname");
+     if($mid==''||$nickname==''){
+         echo j("007","param err");
+         return;
+     }
+     $db->update("mb_member","nickname='$nickname'","mid=$mid");
+     echo j("000","eidt profile succ");
  }else{
-     echo j(null,"002","wrong action");
+     die(j("002","wrong action"));
  }
 /////////////////////////////////////////////////////
 //get or post param
