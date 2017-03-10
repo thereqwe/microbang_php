@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set ('PRC');
 require_once  "Mysql.php";
 $db = new MbMysql("127.0.0.1","root","123","micro_bang","","UTF8");
 //error_reporting( E_ALL );
@@ -21,8 +22,10 @@ while ( true ) {
     $from_mid = $json["mid"];
     $to_mid = $json["to_mid"];
     $now = now();
+    $text = urlencode($text);
     $db->insert("mb_msg","msg,create_time,type,from_mid,to_mid,is_finished","'{$text}','{$now}',1,'$from_mid','$to_mid',0");
     var_dump($buf);
+    echo now();
     usleep( 1000 );
 }
 

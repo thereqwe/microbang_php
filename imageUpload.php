@@ -49,7 +49,8 @@ if(is_uploaded_file($_FILES['file']['tmp_name']))
     exit;
 }
 $db = new MbMysql("127.0.0.1","root","123","micro_bang","","UTF8");
-$db->update("mb_member","avatar_url='/upfile/{$today}{$type}'","mid=$mid");
-$arr = array("errCode"=>"000","msg"=>"succ","avatar_url"=>"/upfile/{$today}{$type}");
+$db->update("mb_member","avatar_url='http://30.97.16.232:8887
+/upfile/{$today}{$type}'","mid=$mid");
+$arr = array("errCode"=>"000","msg"=>"succ","avatar_url"=>"http://30.97.16.232:8887/upfile/{$today}{$type}");
 echo  json_encode($arr);
 closedir($dir);
