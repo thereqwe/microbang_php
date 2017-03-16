@@ -245,15 +245,16 @@ UNION
     echo j("000", "succ",array("captcha"=>$_SESSION["captcha"]));
     return;
  }else if($action == "create_activity") {
-     $title = p("title");
+     $activity_title = p("activity_title");
      $start_time= p("start_time");
      $info= p("info");
-     $lat= p("lat");
-     $lng= p("lng");
+     $meet_lat= p("meet_lat");
+     $meet_lng= p("meet_lng");
      $category_idx= p("category_idx");
-     $address = p("address");
-     $db->insert("SYLActivity", "activity_title,start_time,info,mid,lat,lng,category_idx,address",
-         "'$title','$start_time','$info','$mid','$lat','$lng','$category_idx','$address'");
+     $meet_address = p("meet_address");
+     $activity_address = p("activity_address");
+     $db->insert("SYLActivity", "activity_title,start_time,info,mid,meet_lat,meet_lng,category_idx,meet_address,activity_address",
+         "'$activity_title','$start_time','$info','$mid','$meet_lat','$meet_lng','$category_idx','$meet_address','$activity_address'");
      echo j("000", "succ");
      return;
  }else if($action == "get_category"){
@@ -294,22 +295,23 @@ UNION
     echo  j("000","succ",$data);
     return;
 }else if($action == "get_near_activity_coordinate"){
-    $lng = p("lat");
-    $lat = p("lng");
+    $lat = p("lat");
+    $lng = p("lng");
     $rst =$db->query("SELECT *,
-        (POWER(MOD(ABS(lng - $lng),360),2) + POWER(ABS(lat - $lat),2)) AS distance
+        (POWER(MOD(ABS(meet_lng - $lng),360),2) + POWER(ABS(meet_lat - $lat),2)) AS distance
         FROM SYLActivity
         ORDER BY distance LIMIT 100");
     $arr = array();
     while($row=$db->fetch_array()){
         array_push($arr,array(
             "activity_title"=>$row["activity_title"],
-            "address"=>$row["address"],
+            "activity_address"=>$row["activity_address"],
             "activity_idx"=>$row["activity_idx"],
-            "category_title"=>$row["category_title"],
+            "category_idx"=>$row["category_idx"],
             "start_time"=>$row["start_time"],
-            "lat"=>$row["lat"],
-            "lng"=>$row["lng"],
+            "meet_address"=>$row["meet_address"],
+            "meet_lat"=>$row["meet_lat"],
+            "meet_lng"=>$row["meet_lng"],
         ));
     }
     //   var_dump($arr);
