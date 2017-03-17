@@ -299,7 +299,8 @@ UNION
     $lng = p("lng");
     $rst =$db->query("SELECT *,
         (POWER(MOD(ABS(meet_lng - $lng),360),2) + POWER(ABS(meet_lat - $lat),2)) AS distance
-        FROM SYLActivity
+        FROM SYLActivity as t1 left JOIN  SYLCategory as t2 on t1.category_idx=t2.category_idx
+        LEFT  join SYLMember as t3 on t1.mid=t3.mid
         ORDER BY distance LIMIT 100");
     $arr = array();
     while($row=$db->fetch_array()){
@@ -308,10 +309,12 @@ UNION
             "activity_address"=>$row["activity_address"],
             "activity_idx"=>$row["activity_idx"],
             "category_idx"=>$row["category_idx"],
+            "category_title"=>$row["category_title"],
             "start_time"=>$row["start_time"],
             "meet_address"=>$row["meet_address"],
             "meet_lat"=>$row["meet_lat"],
             "meet_lng"=>$row["meet_lng"],
+            "nick_name"=>$row["nick_name"],
         ));
     }
     //   var_dump($arr);
