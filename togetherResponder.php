@@ -12,8 +12,6 @@ require_once  "Mysql.php";
     die(j("001","action can not be empty"));
  }
 
-
-
  /***********************************/
 if ($action == "get_notification"){
    // echo ">>>>$mid<<<";
@@ -289,6 +287,50 @@ UNION
         ));
     }
    //   var_dump($arr);
+    $data = array(
+        "data"=>$arr
+    );
+    echo  j("000","succ",$data);
+    return;
+}else if($action == "sign_up_activity"){
+    $activity_idx = p("activity_idx");
+    $reason= urlencode(p("reason"));
+    $mid = p("mid");
+    //check if has been enrolled
+    $db->select("SYLEnroll","*","mid='$mid'");
+    if(count($db->fetch_array())>0) {
+        echo j("002", "您已经报过");
+        return;
+    }
+    //sign up
+    $db->insert("SYLEnroll","activity_idx,mid,reason,create_time",
+        "'$activity_idx','$mid','$reason','$time'");
+    echo  j("000","succ");
+    return;
+}else if($action == "get_activity_detail"){
+    $activity_idx = p("activity_idx");
+    $rst =$db->query("SELECT * from SYLActivity as t1 left join SYLMember as t2 on t1.mid=t2.mid LEFT join
+SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$activity_idx'");
+    $arr = array();
+    while($row=$db->fetch_array()){
+        array_push($arr,array(
+            "activity_title"=>$row["activity_title"],
+            "activity_address"=>$row["activity_address"],
+            "activity_idx"=>$row["activity_idx"],
+            "category_idx"=>$row["category_idx"],
+            "category_title"=>$row["category_title"],
+            "start_time"=>$row["start_time"],
+            "meet_address"=>$row["meet_address"],
+            "meet_lat"=>$row["meet_lat"],
+            "meet_lng"=>$row["meet_lng"],
+            "nick_name"=>$row["nick_name"],
+            "sex"=>$row["sex"],
+            "age"=>$row["age"],
+            "info"=>$row["info"],
+            "mobile"=>$row["mobile"],
+        ));
+    }
+    //   var_dump($arr);
     $data = array(
         "data"=>$arr
     );
