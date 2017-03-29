@@ -147,21 +147,33 @@ UNION
      $from_mid = p("mid");
      $from_nick_name = p("from_nick_name");
      $to_nick_name = p("to_nick_name");
+     $type = 2;
+
      $db->select("SYLMember","mid","nick_name = '$to_nick_name' limit 1");
      while($row=$db->fetch_array()) {
          $to_mid = $row["mid"];
      }
-     $type = 2;
-//        echo "--->$to_mid<--";
      $json_data = urlencode(json_encode(array("from_mid"=>$from_mid,"to_mid"=>$to_mid,
          "from_nick_name"=>$from_nick_name,"to_nick_name"=>$to_nick_name)));
      $create_time = time();
      if($to_mid==''){
          echo  j("109","此用户不存在",$data);
+         return;
      }else {
+         $db->query("select * FROM  SYLFriend where ((from_mid = '$from_mid' and to_mid='$to_mid') or (from_mid = '$to_mid' and to_mid='$from_mid'))");
+         if($db->fetch_array()!==false){
+             echo  j("003","你们已经是好友了");
+             return;
+         }
+         $db->query("select * FROM  SYLNotification where  json_data = '$json_data'");
+         if($db->fetch_array()!==false){
+             echo  j("004","你已发送过请求");
+             return;
+         }
          $db->insert("SYLNotification", "title,text_content,json_data,type,create_time,to_mid",
              "'好友申请','{$from_nick_name}想成为你的好友','$json_data','$type','$create_time','$to_mid'");
          echo  j("000","succ",$data);
+         return;
      }
      return;
 }else if($action == "create_friendship") {
@@ -199,7 +211,7 @@ UNION
     $captcha = p("captcha");
     if($captcha != $_SESSION["captcha"]){
     echo j("023", "验证码错误 --->$captcha<--- {$_SESSION['captcha']}");
-    return;
+        return;
     }
     $nick_name = p("nick_name");
     $pwd = md5(p("pwd"));
@@ -230,7 +242,7 @@ UNION
     }
     if($i>0){
         echo j("083", "手机已经被使用");
-        return;
+       return;
     }
     $db->insert("SYLMember","nick_name,pwd,register_time,email,mobile","'$nick_name','$pwd','$register_time','$email','$mobile
     '");
@@ -297,13 +309,13 @@ UNION
     $reason= urlencode(p("reason"));
     $mid = p("mid");
     //check if has been enrolled
-    $db->select("SYLEnroll","*","mid='$mid'");
-    if(count($db->fetch_array())>0) {
+    $db->select("SYLSignUp","*","mid='$mid'");
+    if($db->fetch_array()!=false) {
         echo j("002", "您已经报过");
         return;
     }
     //sign up
-    $db->insert("SYLEnroll","activity_idx,mid,reason,create_time",
+    $db->insert("SYLSignUp","activity_idx,mid,reason,create_time",
         "'$activity_idx','$mid','$reason','$time'");
     echo  j("000","succ");
     return;
@@ -339,11 +351,52 @@ SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$acti
 }else if($action == "get_near_activity_coordinate"){
     $lat = p("lat");
     $lng = p("lng");
+    $range_max_age =    p("range_max_age");
+    $range_min_age =    p("range_min_age");
+    $range_start_day =  p("range_start_day");
+    $range_distance =   p("range_distance");
+    $range_sex =        p("range_sex");
+    $range_category_idx = p("range_category_idx");
+
+    //开始拼过滤条件
+    $condition = "1=1";
+    if($range_max_age!=""&&$range_min_age!=""){
+        $condition .=" and t3.age>'$range_min_age' and t3.age<'$range_max_age'";
+    }
+    if($range_sex!=""){
+        $condition .=" and t3.sex='$range_sex'";
+    }
+    if($range_distance!=""){
+        $condition .=" and (POWER(MOD(ABS(meet_lng - $lng),360),2) + POWER(ABS(meet_lat - $lat),2))<='$range_distance'";
+    }
+    if($range_category_idx!=""){
+        $condition .=" and t1.category_idx='$range_category_idx'";
+    }
+    if($range_start_day!=""){
+        if($range_start_day=="0"){
+            $sTime = strtotime('today');
+            $eTime = strtotime('today')+3600*24;
+        }else  if($range_start_day=="1"){
+            $sTime = strtotime('tomorrow');
+            $eTime = strtotime('tomorrow')+3600*24;
+        }else  if($range_start_day=="2"){
+            $sTime = strtotime('tomorrow');
+            $eTime = strtotime('tomorrow')+3600*24*2;
+        }else  if($range_start_day=="3"){
+            $sTime = strtotime('tomorrow');
+            $eTime = strtotime('tomorrow')+3600*24*3;
+        }
+
+        $condition  .=" and t1.start_time between $sTime and $eTime";
+    }
+
+    //开始搜索
     $rst =$db->query("SELECT *,
         (POWER(MOD(ABS(meet_lng - $lng),360),2) + POWER(ABS(meet_lat - $lat),2)) AS distance
         FROM SYLActivity as t1 left JOIN  SYLCategory as t2 on t1.category_idx=t2.category_idx
-        LEFT  join SYLMember as t3 on t1.mid=t3.mid
+        LEFT  join SYLMember as t3 on t1.mid=t3.mid where $condition
         ORDER BY distance LIMIT 100");
+
     $arr = array();
     while($row=$db->fetch_array()){
         array_push($arr,array(
