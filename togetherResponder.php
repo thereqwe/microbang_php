@@ -15,7 +15,7 @@ require_once  "Mysql.php";
  /***********************************/
 if ($action == "get_notification"){
    // echo ">>>>$mid<<<";
-    $db->select("SYLNotification","*","to_mid='$mid' and is_handled=0");
+    $db->select("SYLNotification","*","to_mid='$mid' and is_handled=0get_noti and is_deleted=0");
     $arr = array();
     while($row=$db->fetch_array()) {
         array_push($arr, array(
@@ -82,6 +82,29 @@ if ($action == "get_notification"){
         "data"=>$arr
     );
     echo  j("000","succ",$data);
+}else if($action=="get_member_show") {
+    $see_mid = p("see_mid");
+    $sql = "select * from SYLMember as t1 LEFT  JOIN
+SYLPersonality as t2 on t1.personality_idx=t2.personality_idx
+ where t1.mid=$see_mid";
+    $db->query($sql);
+    $arr = array();
+    while($row=$db->fetch_array()) {
+        array_push($arr, array(
+            "avatar_url" => $row["avatar_url"],
+            "sex" => $row["sex"],
+            "personality_text"=>$row["personality_text"],
+            "height"=>$row["height"],
+            "slogan"=>$row["slogan"],
+            "age"=>$row["age"],
+            "nick_name"=>$row["nick_name"],
+        ));
+    }
+    $data = array(
+        "data"=>$arr
+    );
+    echo  j("000","succ",$data);
+    return;
 }else if($action=="get_profile") {
     $sql = "select * from SYLMember as t1 LEFT  JOIN SYLPersonality as t2 on t1.personality_idx=t2.personality_idx
  where t1.mid=$mid";
@@ -153,8 +176,8 @@ UNION
      while($row=$db->fetch_array()) {
          $to_mid = $row["mid"];
      }
-     $json_data = urlencode(json_encode(array("from_mid"=>$from_mid,"to_mid"=>$to_mid,
-         "from_nick_name"=>$from_nick_name,"to_nick_name"=>$to_nick_name)));
+     $json_data = json_encode(array("from_mid"=>$from_mid,"to_mid"=>$to_mid,
+         "from_nick_name"=>$from_nick_name,"to_nick_name"=>$to_nick_name));
      $create_time = time();
      if($to_mid==''){
          echo  j("109","此用户不存在",$data);
@@ -176,6 +199,16 @@ UNION
          return;
      }
      return;
+}else if($action == "delete_notification") {
+    $notification_idx  = p("notification_idx");
+    $db->query("update SYLNotification set is_deleted = 1 where notification_idx = $notification_idx");
+    echo  j("000","succ",$data);
+    return;
+}else if($action == "handle_notification") {
+    $notification_idx  = p("notification_idx");
+    $db->query("update SYLNotification set is_handled = 1 where notification_idx = $notification_idx");
+    echo  j("000","succ",$data);
+    return;
 }else if($action == "create_friendship") {
     $json_data =  urldecode(p("json_data"));
     $arr_data = json_decode($json_data,true);
@@ -284,15 +317,39 @@ UNION
     );
     echo  j("000","succ",$data);
          return;
- }else if($action == "get_my_activity_list"){
-    $rst =$db->query("select * from  SYLTogether.SYLActivity as t1
-      LEFT  JOIN SYLTogether.SYLCategory as t2
-      on t1.category_idx=t2.category_idx where 1");
+ }else if($action == "get_signed_up_list"){//我报名的活动
+    $rst =$db->query("select * from  SYLTogether.SYLSignUp as t1
+      LEFT  JOIN SYLTogether.SYLActivity as t2
+      on t1.activity_idx=t2.activity_idx
+      LEFT JOIN  SYLCategory as t3 on t2.category_idx=t3.category_idx
+      where t1.mid=$mid");
     $arr = array();
     while($row=$db->fetch_array()){
         array_push($arr,array(
             "activity_title"=>$row["activity_title"],
-            "address"=>$row["address"],
+            "meet_address"=>$row["meet_address"],
+            "activity_address"=>$row["activity_address"],
+            "activity_idx"=>$row["activity_idx"],
+            "category_title"=>$row["category_title"],
+            "start_time"=>$row["start_time"]
+        ));
+    }
+    //   var_dump($arr);
+    $data = array(
+        "data"=>$arr
+    );
+    echo  j("000","succ",$data);
+    return;
+ }else if($action == "get_my_activity_list"){//我发起的活动
+    $rst =$db->query("select * from  SYLTogether.SYLActivity as t1
+      LEFT  JOIN SYLTogether.SYLCategory as t2
+      on t1.category_idx=t2.category_idx where is_deleted!=1");
+    $arr = array();
+    while($row=$db->fetch_array()){
+        array_push($arr,array(
+            "activity_title"=>$row["activity_title"],
+            "meet_address"=>$row["meet_address"],
+            "activity_address"=>$row["activity_address"],
             "activity_idx"=>$row["activity_idx"],
             "category_title"=>$row["category_title"],
             "start_time"=>$row["start_time"]
@@ -304,12 +361,35 @@ UNION
     );
     echo  j("000","succ",$data);
     return;
+}else if($action == "delete_activity"){
+    $activity_idx = p("activity_idx");
+    $db->query("update SYLActivity set is_deleted=1 where activity_idx=$activity_idx");
+    echo  j("000","succ");
+    return;
+}else if($action == "get_sign_up_member"){
+    $activity_idx = p("activity_idx");
+    $mid = p("mid");
+    $db->query("select * from SYLSignUp as t1 left join SYLMember as t2 on t1.mid=t2.mid
+where t1.activity_idx=$activity_idx");
+    $arr = array();
+    while($row=$db->fetch_array()) {
+        array_push($arr,array(
+            "nick_name"=>$row["nick_name"],
+            "mid"=>$row["mid"],
+            "avatar_url"=>$row["avatar_url"]
+        ));
+    }
+    $data = array(
+        "data"=>$arr
+    );
+    echo  j("000","succ",$data);
+    return;
 }else if($action == "sign_up_activity"){
     $activity_idx = p("activity_idx");
     $reason= urlencode(p("reason"));
     $mid = p("mid");
     //check if has been enrolled
-    $db->select("SYLSignUp","*","mid='$mid'");
+    $db->select("SYLSignUp","*","mid='$mid' and activity_idx='$activity_idx'");
     if($db->fetch_array()!=false) {
         echo j("002", "您已经报过");
         return;
@@ -321,11 +401,19 @@ UNION
     return;
 }else if($action == "get_activity_detail"){
     $activity_idx = p("activity_idx");
+    $rst =$db->query("SELECT * from SYLSignUp  where activity_idx = '$activity_idx' and mid='$mid' limit 1");
+
+    if($db->fetch_array()==false){
+        $has_sign_up = "0";
+    }else{
+        $has_sign_up = "1";
+    }
     $rst =$db->query("SELECT * from SYLActivity as t1 left join SYLMember as t2 on t1.mid=t2.mid LEFT join
 SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$activity_idx'");
     $arr = array();
     while($row=$db->fetch_array()){
         array_push($arr,array(
+            "has_sign_up"=>$has_sign_up,
             "activity_title"=>$row["activity_title"],
             "activity_address"=>$row["activity_address"],
             "activity_idx"=>$row["activity_idx"],
@@ -340,6 +428,7 @@ SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$acti
             "age"=>$row["age"],
             "info"=>$row["info"],
             "mobile"=>$row["mobile"],
+            "mid"=>$row["mid"],
         ));
     }
     //   var_dump($arr);
@@ -386,17 +475,20 @@ SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$acti
             $sTime = strtotime('tomorrow');
             $eTime = strtotime('tomorrow')+3600*24*3;
         }
-
         $condition  .=" and t1.start_time between $sTime and $eTime";
     }
-
+    //echo $condition;
     //开始搜索
     $rst =$db->query("SELECT *,
         (POWER(MOD(ABS(meet_lng - $lng),360),2) + POWER(ABS(meet_lat - $lat),2)) AS distance
         FROM SYLActivity as t1 left JOIN  SYLCategory as t2 on t1.category_idx=t2.category_idx
         LEFT  join SYLMember as t3 on t1.mid=t3.mid where $condition
         ORDER BY distance LIMIT 100");
-
+//    echo "SELECT *,
+//        (POWER(MOD(ABS(meet_lng - $lng),360),2) + POWER(ABS(meet_lat - $lat),2)) AS distance
+//        FROM SYLActivity as t1 left JOIN  SYLCategory as t2 on t1.category_idx=t2.category_idx
+//        LEFT  join SYLMember as t3 on t1.mid=t3.mid where $condition
+//        ORDER BY distance LIMIT 100";
     $arr = array();
     while($row=$db->fetch_array()){
         array_push($arr,array(
