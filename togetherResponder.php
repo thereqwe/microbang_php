@@ -1,6 +1,8 @@
 <?
+error_reporting(E_ALL &~E_NOTICE &~E_DEPRECATED);
 session_start();
-include "TopSdk.php";
+require_once "TopSdk.php";
+require_once "./Qiniu/Auth.php";
 date_default_timezone_set('Asia/Shanghai');
 $register_time = $time = time();
 require_once  "Mysql.php";
@@ -15,7 +17,7 @@ require_once  "Mysql.php";
  /***********************************/
 if ($action == "get_notification"){
    // echo ">>>>$mid<<<";
-    $db->select("SYLNotification","*","to_mid='$mid' and is_handled=0get_noti and is_deleted=0");
+    $db->select("SYLNotification","*","to_mid='$mid' and is_handled=0 and is_deleted=0");
     $arr = array();
     while($row=$db->fetch_array()) {
         array_push($arr, array(
@@ -32,6 +34,16 @@ if ($action == "get_notification"){
     );
     echo  j("000","succ",$data);
     return;
+}else if($action=="get_qiniu_upload_token") {
+    $auth = new \Qiniu\Auth("6YaKdLne-f_ayq2rpbObKfTOx60dWPuneh8BcnY4","xYXjYRq6j5LgJZvkRSB9btf-cVeLuUXk7QtxSYbF");
+    $data = array(
+        "data"=>$auth->uploadToken("together"),
+    );
+    echo  j("000","succ",$data);
+}else if($action=="set_avatar_url") {
+    $avatar_url = p("avatar_url");
+    $db->query("update SYLMember set avatar_url='$avatar_url' where mid = $mid");
+    echo  j("000","succ");
 }else if($action=="get_nick_name") {
     $sql = "select * from SYLMember where mid=$mid";
     $db->query($sql);
@@ -150,7 +162,7 @@ SYLPersonality as t2 on t1.personality_idx=t2.personality_idx
     $db->query("select * from SYLFriend as t1 LEFT JOIN  SYLMember as t2 on t1.from_mid=t2.mid where t1.to_mid = $mid
 UNION
     select * from SYLFriend as t1 LEFT JOIN  SYLMember as t2 on t1.to_mid=t2.mid where t1.from_mid = $mid
-     order by nick_name");
+     order by nick_name ");
     while($row=$db->fetch_array()) {
         array_push($arr, array(
             "nick_name" => $row["nick_name"],
@@ -502,6 +514,7 @@ SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$acti
             "meet_lat"=>$row["meet_lat"],
             "meet_lng"=>$row["meet_lng"],
             "nick_name"=>$row["nick_name"],
+            "avatar_url"=>$row["avatar_url"],
         ));
     }
     //   var_dump($arr);
@@ -549,7 +562,7 @@ function now()
 }
 
 ///json return
-function j($errCode="000",$msg="成功",$arr)
+function j($errCode="000",$msg="成功",$arr=array())
 {
     $arr2 =  array(
         "errCode"=>$errCode,
