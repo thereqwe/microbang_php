@@ -1,26 +1,27 @@
-<?
+<?php
+ini_set("display_errors", "On");
+header("Content-Type: text/html; charset=UTF-8");
 error_reporting(E_ALL &~E_NOTICE &~E_DEPRECATED);
 session_start();
-require_once "TopSdk.php";
 require_once "./Qiniu/Auth.php";
+require_once "TopSdk.php";
 date_default_timezone_set('Asia/Shanghai');
 $register_time = $time = time();
 require_once  "Mysql.php";
- $db = new MbMysql("127.0.0.1","root","123","SYLTogether","","UTF8");
+ global $db;
+ $db = new MbMysql($DB_IP,$DB_USER_NAME,$DB_PASSWORD,$DB_NAME,"","UTF8");
  $now = now();
  $action = p("action");
- $mid = p("mid");
+ $_SESSION["mid"]= $mid = p("mid");
  if($action==""){
     die(j("001","action can not be empty"));
  }
 
- /***********************************/
 if ($action == "get_notification"){
-   // echo ">>>>$mid<<<";
     $db->select("SYLNotification","*","to_mid='$mid' and is_handled=0 and is_deleted=0");
     $arr = array();
     while($row=$db->fetch_array()) {
-        array_push($arr, array(
+        array_push_ex($arr, array(
             "notification_idx" => $row["notification_idx"],
             "title" => $row["title"],
             "json_data"=>$row["json_data"],
@@ -49,7 +50,7 @@ if ($action == "get_notification"){
     $db->query($sql);
     $arr = array();
     while($row=$db->fetch_array()) {
-        array_push($arr, array(
+        array_push_ex($arr, array(
             "nick_name"=>$row["nick_name"]
         ));
     }
@@ -86,7 +87,7 @@ if ($action == "get_notification"){
     $db->query($sql);
     $arr = array();
     while($row=$db->fetch_array()) {
-        array_push($arr, array(
+        array_push_ex($arr, array(
             "slogan"=>$row["slogan"]
         ));
     }
@@ -102,7 +103,7 @@ SYLPersonality as t2 on t1.personality_idx=t2.personality_idx
     $db->query($sql);
     $arr = array();
     while($row=$db->fetch_array()) {
-        array_push($arr, array(
+        array_push_ex($arr, array(
             "avatar_url" => $row["avatar_url"],
             "sex" => $row["sex"],
             "personality_text"=>$row["personality_text"],
@@ -123,13 +124,25 @@ SYLPersonality as t2 on t1.personality_idx=t2.personality_idx
     $db->query($sql);
     $arr = array();
     while($row=$db->fetch_array()) {
-        array_push($arr, array(
+        $json_hobby = json_decode($row["json_hobby"],true);
+//        var_dump($json_hobby);
+        $i = 0;
+        foreach ($json_hobby as $item) {
+            if($item["value"]!=""){
+                $i++;
+            }
+        }
+
+        $hobby_percent = "完成度".(int)($i/count($json_hobby)*100)."%";
+        array_push_ex($arr, array(
             "avatar_url" => $row["avatar_url"],
             "sex" => $row["sex"],
             "personality_text"=>$row["personality_text"],
             "height"=>$row["height"],
             "slogan"=>$row["slogan"],
             "age"=>$row["age"],
+            "nick_name"=>$row["nick_name"],
+            "hobby_percent"=>$hobby_percent,
         ));
     }
     $data = array(
@@ -154,7 +167,7 @@ SYLPersonality as t2 on t1.personality_idx=t2.personality_idx
     $req->setSmsParam("{\"code\":\"{$_SESSION['captcha']}\"}");
     $req->setRecNum($mobile);
     $req->setSmsTemplateCode("SMS_49355019");
-    //$resp = $c->execute($req);
+    $resp = $c->execute($req);
     echo  j("000","{$_SESSION['captcha']}",array("captcha0"=>$_SESSION['captcha'],"resp"=>$resp));
     return;
 }else if($action=="get_friend_list"){
@@ -164,7 +177,7 @@ UNION
     select * from SYLFriend as t1 LEFT JOIN  SYLMember as t2 on t1.to_mid=t2.mid where t1.from_mid = $mid
      order by nick_name ");
     while($row=$db->fetch_array()) {
-        array_push($arr, array(
+        array_push_ex($arr, array(
             "nick_name" => $row["nick_name"],
             "email" => $row["email"],
             "mid" => $row["mid"],
@@ -180,12 +193,24 @@ UNION
     return;
 }else if($action=="wantTobeFriend"){
      $from_mid = p("mid");
-     $from_nick_name = p("from_nick_name");
      $to_nick_name = p("to_nick_name");
      $type = 2;
-
+    if($to_nick_name == ""){
+        echo  j("139","请输入对方的昵称",$data);
+        return;
+    }
+     if($to_mid == $mid){
+         echo  j("129","不能添加自己为好友",$data);
+         return;
+     }
+     //请求者昵称
+     $db->query("select nick_name from SYLMember where mid=$mid");
+     while($row = $db->fetch_array()){
+         $from_nick_name = $row["nick_name"];
+     }
+     //对方的 mid
      $db->select("SYLMember","mid","nick_name = '$to_nick_name' limit 1");
-     while($row=$db->fetch_array()) {
+     while($row=$db->fetch_array()){
          $to_mid = $row["mid"];
      }
      $json_data = json_encode(array("from_mid"=>$from_mid,"to_mid"=>$to_mid,
@@ -222,7 +247,8 @@ UNION
     echo  j("000","succ",$data);
     return;
 }else if($action == "create_friendship") {
-    $json_data =  urldecode(p("json_data"));
+    $json_data =  (p("json_data"));
+    $json_data = str_replace("\\",'',$json_data);
     $arr_data = json_decode($json_data,true);
     $from_mid = $arr_data["from_mid"];
     $to_mid = $arr_data["to_mid"];
@@ -233,16 +259,20 @@ UNION
 }elseif($action == "login"){
     $mobile = p("mobile");
     $pwd = md5(p("pwd"));
-     $arr = array();
-    $db->select("SYLMember","*","pwd='$pwd' and mobile = '$mobile' limit 1");
-     while($row=$db->fetch_array()) {
-         array_push($arr, array(
+    $uuid = p("uuid");
+    $arr = array();
+    $db->query("select * from SYLMember where pwd ='$pwd' and mobile = '$mobile' limit 1");
+    //echo "select * from SYLMember where pwd ='$pwd' and mobile = '$mobile' limit 1";
+    while($row=$db->fetch_array()) {
+        array_push_ex($arr, array(
              "nick_name" => $row["nick_name"],
              "email" => $row["email"],
              "mid" => $row["mid"],
              "avatar_url"=>$row["avatar_url"],
              "mobile"=>$row["mobile"],
          ));
+         //更新uuid
+         $db->query("update SYLMember set uuid='$uuid' where mid = {$row['mid']}");
      }
      $data = array(
          "data"=>$arr
@@ -289,8 +319,7 @@ UNION
         echo j("083", "手机已经被使用");
        return;
     }
-    $db->insert("SYLMember","nick_name,pwd,register_time,email,mobile","'$nick_name','$pwd','$register_time','$email','$mobile
-    '");
+    $db->insert("SYLMember","nick_name,pwd,register_time,email,mobile","'$nick_name','$pwd','$register_time','$email','$mobile'");
      echo j("000", "succ",array(
          "captcha"=>$_SESSION["captcha"],
          "mid"=>$db->insert_id(),
@@ -302,72 +331,74 @@ UNION
  }else if($action == "create_activity") {
      $activity_title = p("activity_title");
      $start_time= p("start_time");
-     $info= p("info");
+     $info= (p("info"));
      $meet_lat= p("meet_lat");
      $meet_lng= p("meet_lng");
      $category_idx= p("category_idx");
      $meet_address = p("meet_address");
      $activity_address = p("activity_address");
-     $db->insert("SYLActivity", "activity_title,start_time,info,mid,meet_lat,meet_lng,category_idx,meet_address,activity_address",
-         "'$activity_title','$start_time','$info','$mid','$meet_lat','$meet_lng','$category_idx','$meet_address','$activity_address'");
+     $cover_url = p("cover_url");
+     $db->insert("SYLActivity", "activity_title,start_time,info,mid,meet_lat,meet_lng,category_idx,meet_address,
+          activity_address,cover_url",
+         "'$activity_title','$start_time','$info','$mid','$meet_lat','$meet_lng','$category_idx','$meet_address',
+         '$activity_address','$cover_url'");
      echo j("000", "succ");
      return;
  }else if($action == "get_category"){
     $rst =$db->select("SYLCategory");
     $arr = array();
     while($row=$db->fetch_array()){
-        array_push($arr,array(
+        array_push_ex($arr,array(
             "idx"=>$row["category_idx"],
             "title"=>$row["category_title"],
             "category_level"=>$row["category_level"],
             "parent_idx"=>$row["parent_idx"]
         ));
     }
-    //  var_dump($arr);
     $data = array(
         "data"=>$arr
     );
     echo  j("000","succ",$data);
          return;
  }else if($action == "get_signed_up_list"){//我报名的活动
-    $rst =$db->query("select * from  SYLTogether.SYLSignUp as t1
-      LEFT  JOIN SYLTogether.SYLActivity as t2
+    $rst =$db->query("select * from  SYLSignUp as t1
+      LEFT  JOIN SYLActivity as t2
       on t1.activity_idx=t2.activity_idx
       LEFT JOIN  SYLCategory as t3 on t2.category_idx=t3.category_idx
       where t1.mid=$mid");
     $arr = array();
     while($row=$db->fetch_array()){
-        array_push($arr,array(
+        array_push_ex($arr,array(
             "activity_title"=>$row["activity_title"],
             "meet_address"=>$row["meet_address"],
             "activity_address"=>$row["activity_address"],
             "activity_idx"=>$row["activity_idx"],
             "category_title"=>$row["category_title"],
-            "start_time"=>$row["start_time"]
+            "start_time"=>$row["start_time"],
+            "cover_url"=>$row["cover_url"],
         ));
     }
-    //   var_dump($arr);
     $data = array(
         "data"=>$arr
     );
     echo  j("000","succ",$data);
     return;
  }else if($action == "get_my_activity_list"){//我发起的活动
-    $rst =$db->query("select * from  SYLTogether.SYLActivity as t1
-      LEFT  JOIN SYLTogether.SYLCategory as t2
-      on t1.category_idx=t2.category_idx where is_deleted!=1");
+    $rst =$db->query("select * from  SYLActivity as t1
+      LEFT  JOIN SYLCategory as t2
+      on t1.category_idx=t2.category_idx where is_deleted!=1 and mid ='$mid' ");
     $arr = array();
     while($row=$db->fetch_array()){
-        array_push($arr,array(
+        array_push_ex($arr,array(
             "activity_title"=>$row["activity_title"],
             "meet_address"=>$row["meet_address"],
             "activity_address"=>$row["activity_address"],
             "activity_idx"=>$row["activity_idx"],
             "category_title"=>$row["category_title"],
-            "start_time"=>$row["start_time"]
+            "start_time"=>$row["start_time"],
+            "cover_url"=>$row["cover_url"],
         ));
     }
-   //   var_dump($arr);
     $data = array(
         "data"=>$arr
     );
@@ -378,6 +409,24 @@ UNION
     $db->query("update SYLActivity set is_deleted=1 where activity_idx=$activity_idx");
     echo  j("000","succ");
     return;
+}else if($action == "save_hobby"){
+    $json_hobby = p("json_hobby");
+    $db->query("update SYLMember set json_hobby = '$json_hobby' where mid = $mid ");
+    echo  j("000","succ",$data);
+    return;
+}else if($action == "get_user_hobby"){
+    $db->query("select * from SYLMember where mid = $mid");
+    $arr = array();
+    while($row=$db->fetch_array()) {
+        array_push_ex($arr,array(
+            "json_hobby"=>$row["json_hobby"]
+        ));
+    }
+    $data = array(
+        "data"=>$arr
+    );
+    echo  j("000","succ",$data);
+    return;
 }else if($action == "get_sign_up_member"){
     $activity_idx = p("activity_idx");
     $mid = p("mid");
@@ -385,10 +434,24 @@ UNION
 where t1.activity_idx=$activity_idx");
     $arr = array();
     while($row=$db->fetch_array()) {
-        array_push($arr,array(
+        array_push_ex($arr,array(
             "nick_name"=>$row["nick_name"],
             "mid"=>$row["mid"],
-            "avatar_url"=>$row["avatar_url"]
+            "reason"=>($row["reason"]),
+            "avatar_url"=>$row["avatar_url"],
+        ));
+    }
+    $data = array(
+        "data"=>$arr
+    );
+    echo  j("000","succ",$data);
+    return;
+}else if($action == "check_uuid"){
+    $db->query("select uuid from SYLMember where mid = '$mid' limit 1");
+    $arr = array();
+    while($row=$db->fetch_array()){
+        array_push_ex($arr,array(
+            "uuid"=>$row["uuid"],
         ));
     }
     $data = array(
@@ -398,7 +461,7 @@ where t1.activity_idx=$activity_idx");
     return;
 }else if($action == "sign_up_activity"){
     $activity_idx = p("activity_idx");
-    $reason= urlencode(p("reason"));
+    $reason= (p("reason"));
     $mid = p("mid");
     //check if has been enrolled
     $db->select("SYLSignUp","*","mid='$mid' and activity_idx='$activity_idx'");
@@ -414,7 +477,6 @@ where t1.activity_idx=$activity_idx");
 }else if($action == "get_activity_detail"){
     $activity_idx = p("activity_idx");
     $rst =$db->query("SELECT * from SYLSignUp  where activity_idx = '$activity_idx' and mid='$mid' limit 1");
-
     if($db->fetch_array()==false){
         $has_sign_up = "0";
     }else{
@@ -424,7 +486,7 @@ where t1.activity_idx=$activity_idx");
 SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$activity_idx'");
     $arr = array();
     while($row=$db->fetch_array()){
-        array_push($arr,array(
+        array_push_ex($arr,array(
             "has_sign_up"=>$has_sign_up,
             "activity_title"=>$row["activity_title"],
             "activity_address"=>$row["activity_address"],
@@ -438,12 +500,14 @@ SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$acti
             "nick_name"=>$row["nick_name"],
             "sex"=>$row["sex"],
             "age"=>$row["age"],
-            "info"=>$row["info"],
+            "info"=>($row["info"]),
             "mobile"=>$row["mobile"],
             "mid"=>$row["mid"],
+            "cover_url"=>$row["cover_url"],
+            "avatar_url"=>$row["avatar_url"],
         ));
     }
-    //   var_dump($arr);
+
     $data = array(
         "data"=>$arr
     );
@@ -458,9 +522,15 @@ SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$acti
     $range_distance =   p("range_distance");
     $range_sex =        p("range_sex");
     $range_category_idx = p("range_category_idx");
+    $search_key_word = p("search_key_word");
 
     //开始拼过滤条件
     $condition = "1=1";
+    if($search_key_word!="") {
+        $condition .=" and activity_title like '%$search_key_word%'
+        or info like '%$search_key_word%'";
+    }
+
     if($range_max_age!=""&&$range_min_age!=""){
         $condition .=" and t3.age>'$range_min_age' and t3.age<'$range_max_age'";
     }
@@ -474,20 +544,26 @@ SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$acti
         $condition .=" and t1.category_idx='$range_category_idx'";
     }
     if($range_start_day!=""){
-        if($range_start_day=="0"){
+        if($range_start_day=="1"){
             $sTime = strtotime('today');
             $eTime = strtotime('today')+3600*24;
-        }else  if($range_start_day=="1"){
-            $sTime = strtotime('tomorrow');
-            $eTime = strtotime('tomorrow')+3600*24;
+            $condition  .=" and t1.start_time between $sTime and $eTime";
         }else  if($range_start_day=="2"){
             $sTime = strtotime('tomorrow');
-            $eTime = strtotime('tomorrow')+3600*24*2;
+            $eTime = strtotime('tomorrow')+3600*24;
+            $condition  .=" and t1.start_time between $sTime and $eTime";
         }else  if($range_start_day=="3"){
             $sTime = strtotime('tomorrow');
+            $eTime = strtotime('tomorrow')+3600*24*2;
+            $condition  .=" and t1.start_time between $sTime and $eTime";
+        }else  if($range_start_day=="4"){
+            $sTime = strtotime('tomorrow');
             $eTime = strtotime('tomorrow')+3600*24*3;
+            $condition  .=" and t1.start_time between $sTime and $eTime";
+        }else if($range_start_day == "0"){//全部
+            //nothing
         }
-        $condition  .=" and t1.start_time between $sTime and $eTime";
+
     }
     //echo $condition;
     //开始搜索
@@ -503,7 +579,7 @@ SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$acti
 //        ORDER BY distance LIMIT 100";
     $arr = array();
     while($row=$db->fetch_array()){
-        array_push($arr,array(
+        array_push_ex($arr,array(
             "activity_title"=>$row["activity_title"],
             "activity_address"=>$row["activity_address"],
             "activity_idx"=>$row["activity_idx"],
@@ -515,35 +591,42 @@ SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$acti
             "meet_lng"=>$row["meet_lng"],
             "nick_name"=>$row["nick_name"],
             "avatar_url"=>$row["avatar_url"],
+            "cover_url"=>$row["cover_url"],
         ));
     }
-    //   var_dump($arr);
+
     $data = array(
         "data"=>$arr
     );
     echo  j("000","succ",$data);
     return;
-}else{
+}else {
      die(j("002","wrong action"));
  }
 /////////////////////////////////////////////////////
 //get or post param
-function p($key)
-{
+function array_push_ex(array &$arr1,$arr2) {
+    foreach ($arr2 as $key => $value) {
+        $arr2[$key] = ($value);
+    }
+    array_push($arr1,$arr2);
+}
+
+function p($key) {
   $param=$_REQUEST[$key];
   if($param==''){
    $param=$_GET[$key];
   }
   $param = safe($param);
-  return $param;
+  return ($param);
 }
 
-function createCaptcha(){
-    $str = "2,3,4,5,6,7,8,9,a,b,c,d,f,g";      //要显示的字符，可自己进行增删
+function createCaptcha() {
+    $str = "2,3,4,5,6,7,8,9";      //要显示的字符，可自己进行增删
     $list = explode(",", $str);
     $cmax = count($list) - 1;
     $verifyCode = '';
-    for ( $i=0; $i < 5; $i++ ){
+    for ( $i=0; $i < 4; $i++ ){
         $randnum = mt_rand(0, $cmax);
         $verifyCode .= $list[$randnum];           //取出字符，组合成为我们要的验证码字符
     }
@@ -562,11 +645,11 @@ function now()
 }
 
 ///json return
-function j($errCode="000",$msg="成功",$arr=array())
-{
+
+function j($errCode="000",$msg="成功",$arr=array()) {
     $arr2 =  array(
         "errCode"=>$errCode,
-        "msg"=>$msg
+        "msg"=>$msg,
     );
     if($arr==null){
         $arr = array();
