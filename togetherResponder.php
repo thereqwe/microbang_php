@@ -111,6 +111,7 @@ SYLPersonality as t2 on t1.personality_idx=t2.personality_idx
             "slogan"=>$row["slogan"],
             "age"=>$row["age"],
             "nick_name"=>$row["nick_name"],
+            "json_hobby"=>$row["json_hobby"]
         ));
     }
     $data = array(
@@ -124,15 +125,14 @@ SYLPersonality as t2 on t1.personality_idx=t2.personality_idx
     $db->query($sql);
     $arr = array();
     while($row=$db->fetch_array()) {
+        //档案完成度
         $json_hobby = json_decode($row["json_hobby"],true);
-//        var_dump($json_hobby);
         $i = 0;
         foreach ($json_hobby as $item) {
             if($item["value"]!=""){
                 $i++;
             }
         }
-
         $hobby_percent = "完成度".(int)($i/count($json_hobby)*100)."%";
         array_push_ex($arr, array(
             "avatar_url" => $row["avatar_url"],
@@ -247,16 +247,25 @@ UNION
     echo  j("000","succ",$data);
     return;
 }else if($action == "create_friendship") {
-    $json_data =  (p("json_data"));
-    $json_data = str_replace("\\",'',$json_data);
-    $arr_data = json_decode($json_data,true);
+    $json_data = (p("json_data"));
+    $json_data = str_replace("\\", '', $json_data);
+    $arr_data = json_decode($json_data, true);
     $from_mid = $arr_data["from_mid"];
     $to_mid = $arr_data["to_mid"];
     $db->insert("SYLFriend", "from_mid,to_mid,create_time",
         "'$from_mid','$to_mid','$time'");
-    echo  j("000","succ",$data);
+    echo j("000", "succ", $data);
     return;
-}elseif($action == "login"){
+}else if($action == "delete_friendship"){
+    $from_mid = p("from_mid");
+    $to_mid = p("to_mid");
+    $db->query("delete from SYLFriend
+    where (from_mid = $from_mid and to_mid = $to_mid)
+    or (from_mid=$to_mid and to_mid= $from_mid)
+    ");
+    echo j("000", "succ");
+    return;
+}else if($action == "login"){
     $mobile = p("mobile");
     $pwd = md5(p("pwd"));
     $uuid = p("uuid");
@@ -319,7 +328,8 @@ UNION
         echo j("083", "手机已经被使用");
        return;
     }
-    $db->insert("SYLMember","nick_name,pwd,register_time,email,mobile","'$nick_name','$pwd','$register_time','$email','$mobile'");
+    $db->insert("SYLMember","nick_name,pwd,register_time,email,mobile,avatar_url",
+        "'$nick_name','$pwd','$register_time','$email','$mobile','http://image.arshifer.xyz/User_male_1644px_1183457_easyicon.net.png'");
      echo j("000", "succ",array(
          "captcha"=>$_SESSION["captcha"],
          "mid"=>$db->insert_id(),
@@ -513,6 +523,22 @@ SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$acti
     );
     echo  j("000","succ",$data);
     return;
+}else if($action == "get_members"){
+    $mids = p("mids");
+    $arr = array();
+   //echo "select * from SYLMember where mid in($mids)";
+    while($row=$db->fetch_array()){
+        array_push_ex($arr,array(
+          "avatar_url"=>$row["avatar_url"],
+          "nick_name"=>$row["nick_name"],
+          "mid"=>$row["mid"],
+        ));
+    }
+    $data = array(
+        "data"=>$arr
+    );
+    echo  j("000","succ",$data);
+    return;
 }else if($action == "get_near_activity_coordinate"){
     $lat = p("lat");
     $lng = p("lng");
@@ -592,6 +618,7 @@ SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$acti
             "nick_name"=>$row["nick_name"],
             "avatar_url"=>$row["avatar_url"],
             "cover_url"=>$row["cover_url"],
+            "sex"=>$row["sex"]
         ));
     }
 
