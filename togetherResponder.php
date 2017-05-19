@@ -7,6 +7,13 @@ require_once "./Qiniu/Auth.php";
 require_once "TopSdk.php";
 date_default_timezone_set('Asia/Shanghai');
 $register_time = $time = time();
+
+/////////////////////安全检查/////////////////////////////
+if(!checkSecurity($_SERVER["QUERY_STRING"],p("security_check"))){
+    die();
+}
+//////////////////////////////////////////////////
+
 require_once  "Mysql.php";
  global $db;
  $db = new MbMysql($DB_IP,$DB_USER_NAME,$DB_PASSWORD,$DB_NAME,"","UTF8");
@@ -111,7 +118,8 @@ SYLPersonality as t2 on t1.personality_idx=t2.personality_idx
             "slogan"=>$row["slogan"],
             "age"=>$row["age"],
             "nick_name"=>$row["nick_name"],
-            "json_hobby"=>$row["json_hobby"]
+            "json_hobby"=>$row["json_hobby"],
+            "mid"=>$row["mid"],
         ));
     }
     $data = array(
@@ -225,7 +233,7 @@ UNION
              echo  j("003","你们已经是好友了");
              return;
          }
-         $db->query("select * FROM  SYLNotification where  json_data = '$json_data'");
+         $db->query("select * FROM  SYLNotification where  json_data = '$json_data' and is_handled = 0");
          if($db->fetch_array()!==false){
              echo  j("004","你已发送过请求");
              return;
@@ -257,7 +265,7 @@ UNION
     echo j("000", "succ", $data);
     return;
 }else if($action == "delete_friendship"){
-    $from_mid = p("from_mid");
+    $from_mid = $mid;
     $to_mid = p("to_mid");
     $db->query("delete from SYLFriend
     where (from_mid = $from_mid and to_mid = $to_mid)
@@ -551,7 +559,7 @@ SYLCategory as t3 on t3.category_idx=t1.category_idx WHERE activity_idx = '$acti
     $search_key_word = p("search_key_word");
 
     //开始拼过滤条件
-    $condition = "1=1";
+    $condition = "t1.mid!=$mid";
     if($search_key_word!="") {
         $condition .=" and activity_title like '%$search_key_word%'
         or info like '%$search_key_word%'";
@@ -664,6 +672,17 @@ function safe($s){ //安全过滤函数
  if(get_magic_quotes_gpc()){ $s=stripslashes($s); }
  $s=mysql_real_escape_string($s);
  return $s;
+}
+
+//安全请求检查
+function checkSecurity($query_string,$security_check){
+    $original =  str_replace("&security_check=$security_check","",$query_string);
+    if(sha1($original."leon1987")==$security_check){
+        return true;
+    }else{
+        var_dump("no invalid request");
+        return false;
+    }
 }
 
 function now()
